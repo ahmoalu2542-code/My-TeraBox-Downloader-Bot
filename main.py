@@ -343,18 +343,6 @@ async def broadcast_message(m: UpdateNewMessage):
 # """
 
 #     # Send the welcome message
-#     check_if = await is_user_on_chat(bot, "@NTMpro", m.peer_id)
-#     if not check_if:
-#         return await m.reply("Please join @NTMpro then send me the link again.")
-#     await m.reply(reply_text, link_preview=False, parse_mode="markdown")
-
-# Define start command to check user's plan and send welcome message accordingly
-@bot.on(
-    events.NewMessage(
-        pattern="/start",
-        incoming=True,
-        outgoing=False,
-    )
 )
 async def start(m: UpdateNewMessage):
     user_id = m.sender_id
@@ -572,17 +560,6 @@ async def handle_message(m: Message):
 
     is_premium = bool(db.sismember(PREMIUM_USERS_KEY, m.sender_id))
     count = db.get(f"check_{m.sender_id}")
-
-    # Free user rate limit: 10 downloads per hour
-    if not is_premium and m.sender_id not in ADMINS:
-        if count and int(count) >= 10:
-            ttl = db.ttl(f"check_{m.sender_id}")
-            ttl_text = convert_seconds(ttl) if ttl and ttl > 0 else "1 hour"
-            return await hm.edit(
-                f"You've reached your limit (10 videos/hour).\n"
-                f"Try again in **{ttl_text}**.\n"
-                f"Upgrade to **Premium** for unlimited downloads."
-            )
 
     shorturl = extract_code_from_url(url)
     if not shorturl:
