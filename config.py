@@ -1,3 +1,4 @@
+import os
 # ================== TELEGRAM API CONFIG ==================
 
 # Get these from https://my.telegram.org/apps
@@ -11,9 +12,9 @@ BOT_TOKEN = "8999882214:AAFbp4sPDiWnOE1z2eKhToixYsXW0GV_99s"
 # ================== REDIS DATABASE CONFIG ==================
 
 # Redis Host / Port / Password
-HOST = "127.0.0.1"
-PORT = 6379
-PASSWORD = None   # Set to None if Redis has no password
+HOST = os.getenv("REDISHOST", "127.0.0.1")
+PORT = int(os.getenv("REDISPORT", "6379"))
+PASSWORD = os.getenv("REDISPASSWORD") or None
 
 # ================== BOT SETTINGS ==================
 
