@@ -343,7 +343,7 @@ async def broadcast_message(m: UpdateNewMessage):
 # """
 
 #     # Send the welcome message
-)
+
 async def start(m: UpdateNewMessage):
     user_id = m.sender_id
     user = await bot.get_entity(user_id)
