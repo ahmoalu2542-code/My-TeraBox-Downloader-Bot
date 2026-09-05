@@ -547,14 +547,6 @@ async def handle_message(m: Message):
     url = get_urls_from_string(m.text)
     if not url:
         return await m.reply("Please enter a valid url.")
-    check_if = await is_user_on_chat(bot, "@NTMpro", m.sender_id)
-    if not check_if:
-        return await m.reply("Please join @NTMpro then send me the link again.")
-    check_if = await is_user_on_chat(bot, "@NTMchat", m.sender_id)
-    if not check_if:
-        return await m.reply(
-            "Please join @NTMchat then send me the link again."
-        )
     
     hm = await m.reply("Sending you the media wait...")
 
