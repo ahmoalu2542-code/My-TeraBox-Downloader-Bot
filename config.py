@@ -12,9 +12,18 @@ BOT_TOKEN = "8999882214:AAFbp4sPDiWnOE1z2eKhToixYsXW0GV_99s"
 # ================== REDIS DATABASE CONFIG ==================
 
 # Redis Host / Port / Password
-HOST = os.getenv("REDISHOST", "127.0.0.1")
-PORT = int(os.getenv("REDISPORT", "6379"))
-PASSWORD = os.getenv("REDISPASSWORD") or None
+REDIS_URL = os.getenv("REDIS_URL")
+
+if REDIS_URL:
+    from urllib.parse import urlparse, unquote
+    r = urlparse(REDIS_URL)
+    HOST = r.hostname
+    PORT = r.port or 6379
+    PASSWORD = unquote(r.password) if r.password else None
+else:
+    HOST = os.getenv("REDISHOST") or "127.0.0.1"
+    PORT = int(os.getenv("REDISPORT") or "6379")
+    PASSWORD = os.getenv("REDISPASSWORD") or None
 
 # ================== BOT SETTINGS ==================
 
