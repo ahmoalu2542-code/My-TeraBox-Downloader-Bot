@@ -4,7 +4,6 @@ from urllib.parse import parse_qs, urlparse
 
 import aiohttp
 
-from config import TERABOX_API_TEMPLATE
 from tools import get_formatted_size
 
 
@@ -52,110 +51,253 @@ def check_url_patterns(url):
         r"theteraboxmod\.app",
     ]
 
-    for pattern in patterns:
-        if re.search(pattern, url):
-            return True
-
-    return False
+    return any(re.search(pattern, url) for pattern in patterns)
 
 
 def get_urls_from_string(string: str) -> list[str]:
-    pattern = r"(https?://\S+)"
-    urls = re.findall(pattern, string)
-    urls = [url for url in urls if check_url_patterns(url)]
-    if not urls:
-        return []
-    return urls[0]
+    urls = re.findall(r"(https?://\S+)", string)
+    urls = [url.rstrip(".,)>]}") for url in urls if check_url_patterns(url)]
+    return urls[0] if urls else []
 
 
-def extract_surl_from_url(url: str) -> str | None:
-    parsed_url = urlparse(url)
-    query_params = parse_qs(parsed_url.query)
-    surl = query_params.get("surl", [])
-    return surl[0] if surl else False
+# ---------------- TERABOX HELPERS ---------------- #
+
+def extract_surl(url: str):
+    parsed = urlparse(url)
+
+    # ?surl=XXXX
+    query_surl = parse_qs(parsed.query).get("surl")
+    if query_surl:
+        key = query_surl[0]
+    else:
+        # /s/XXXX
+        match = re.search(r"/s/([A-Za-z0-9_-]+)", parsed.path)
+        if not match:
+            match = re.search(r"/s/([A-Za-z0-9_-]+)", url)
+
+        if not match:
+            return None
+
+        key = match.group(1)
+
+    # TeraBox share/list generally expects shorturl without leading 1
+    if key.startswith("1"):
+        return key[1:]
+
+    return key
 
 
-# ---------------- API SETTINGS ---------------- #
+def extract_jstoken(html: str):
+    patterns = [
+        r'fn%28%22(.*?)%22%29',
+        r'fn\("([^"]+)"\)',
+        r'jsToken\s*=\s*["\']([^"\']+)["\']',
+        r'jsToken["\']?\s*:\s*["\']([^"\']+)["\']',
+        r'window\.jsToken\s*=\s*["\']([^"\']+)["\']',
+        r'window\.jsToken.*?%22(.*?)%22',
+    ]
 
-# API endpoint template is imported from config (TERABOX_API_TEMPLATE)
+    for pattern in patterns:
+        match = re.search(pattern, html)
+        if match and match.group(1):
+            return match.group(1)
 
-
-# ---------------- RETRY WRAPPER ---------------- #
-
-async def retry_request(method, url, attempts=3, delay=2, **kwargs):
-    """Async retry wrapper for GET requests."""
-    timeout = aiohttp.ClientTimeout(total=30, connect=10, sock_read=15)
-    for i in range(1, attempts + 1):
-        try:
-            async with aiohttp.ClientSession(timeout=timeout) as session:
-                async with session.request(method, url, **kwargs) as resp:
-                    if resp.status in (200, 302):
-                        resp._text = await resp.text()
-                        resp._json = None
-                        return resp
-                    print(f"[Retry {i}] HTTP {resp.status}")
-        except Exception as e:
-            print(f"[Retry {i}] Error:", e)
-        await asyncio.sleep(delay)
     return None
 
 
-# ---------------- MAIN API HANDLER ---------------- #
+# ---------------- HTTP ---------------- #
+
+async def fetch(session, url, **kwargs):
+    timeout = aiohttp.ClientTimeout(
+        total=30,
+        connect=10,
+        sock_read=20
+    )
+
+    for attempt in range(3):
+        try:
+            async with session.get(
+                url,
+                timeout=timeout,
+                **kwargs
+            ) as response:
+
+                text = await response.text()
+
+                if response.status == 200:
+                    return text
+
+                print(
+                    f"[Retry {attempt + 1}] "
+                    f"HTTP {response.status}"
+                )
+
+        except Exception as e:
+            print(
+                f"[Retry {attempt + 1}] "
+                f"Error: {e}"
+            )
+
+        await asyncio.sleep(2)
+
+    return None
+
+
+# ---------------- MAIN ---------------- #
 
 async def get_files(url: str):
-    """Async: Fetch ALL Terabox file data via Saiyan API."""
-    api_url = TERABOX_API_TEMPLATE.format(url=url)
-    print("\nREQUESTING API:", api_url)
+    """
+    Direct TeraBox extraction.
+    No api.ntm.com required.
+    """
 
-    res = await retry_request("GET", api_url, attempts=3, delay=2)
-    if not res:
-        print("API failed after retries")
+    shorturl = extract_surl(url)
+
+    if not shorturl:
+        print("Could not extract TeraBox shorturl")
         return False
 
-    print("API STATUS:", res.status)
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 "
+            "(KHTML, like Gecko) "
+            "Chrome/145.0.0.0 Safari/537.36"
+        ),
+        "Accept": (
+            "text/html,application/xhtml+xml,"
+            "application/xml;q=0.9,*/*;q=0.8"
+        ),
+        "Accept-Language": "en-US,en;q=0.9",
+    }
 
-    try:
-        data = await res.json()
-    except Exception as e:
-        print("JSON parse error:", e)
-        return False
+    async with aiohttp.ClientSession(
+        headers=headers
+    ) as session:
 
-    print("API RAW RESPONSE:", data)
+        # Get TeraBox share page
+        share_url = (
+            f"https://dm.terabox.app/"
+            f"sharing/link?surl=1{shorturl}"
+        )
 
-    if not data.get("ok"):
-        print("API returned ok=false")
-        return False
+        print("\nREQUESTING TERABOX:", share_url)
 
-    files = data.get("files")
-    if not files:
-        print("No files in API response")
-        return False
+        html = await fetch(
+            session,
+            share_url
+        )
 
-    result = []
-    for f in files:
-        fast_link = f.get("download_url")
-        if not fast_link:
-            continue
-        size_bytes = int(f.get("size", 0))
-        result.append({
-            "file_name": f.get("filename"),
-            "size": f.get("size_readable") or get_formatted_size(size_bytes),
-            "sizebytes": size_bytes,
-            "thumb": None,
-            "direct_link": fast_link,
-            "link": fast_link,
-        })
+        if not html:
+            print("Failed to load TeraBox share page")
+            return False
 
-    if not result:
-        print("No valid download urls in API response")
-        return False
+        # Extract jsToken
+        js_token = extract_jstoken(html)
 
-    return result
+        if not js_token:
+            print("jsToken not found")
+            return False
+
+        print("jsToken extracted successfully")
+
+        # TeraBox share/list API
+        api_url = "https://dm.terabox.app/share/list"
+
+        params = {
+            "app_id": "250528",
+            "jsToken": js_token,
+            "site_referer": "https://www.terabox.app/",
+            "shorturl": shorturl,
+            "root": "1",
+        }
+
+        api_headers = {
+            "Accept": "application/json, text/plain, */*",
+            "X-Requested-With": "XMLHttpRequest",
+            "Referer": share_url,
+            "Origin": "https://dm.terabox.app",
+        }
+
+        try:
+            async with session.get(
+                api_url,
+                params=params,
+                headers=api_headers,
+                timeout=30
+            ) as response:
+
+                print("TERABOX API STATUS:", response.status)
+
+                data = await response.json()
+
+        except Exception as e:
+            print("TeraBox API error:", e)
+            return False
+
+        print("TERABOX RESPONSE:", data)
+
+        if data.get("errno") not in [0, "0"]:
+            print(
+                "TeraBox returned error:",
+                data.get("errmsg", data.get("message"))
+            )
+            return False
+
+        files = data.get("list", [])
+
+        if not files:
+            print("No files found")
+            return False
+
+        result = []
+
+        for file in files:
+
+            # Ignore folders for now
+            if str(file.get("isdir", "0")) == "1":
+                continue
+
+            download_url = (
+                file.get("dlink")
+                or file.get("download_url")
+            )
+
+            if not download_url:
+                continue
+
+            size_bytes = int(
+                file.get("size", 0) or 0
+            )
+
+            result.append({
+                "file_name": file.get(
+                    "server_filename",
+                    "TeraBox File"
+                ),
+                "size": get_formatted_size(size_bytes),
+                "sizebytes": size_bytes,
+                "thumb": file.get("thumbs", {}).get("url3"),
+                "direct_link": download_url,
+                "link": download_url,
+            })
+
+        if not result:
+            print("No direct download links found")
+            return False
+
+        print(
+            f"Found {len(result)} downloadable file(s)"
+        )
+
+        return result
 
 
 async def get_data(url: str):
-    """Async: Fetch the FIRST Terabox file only."""
+    """Fetch first TeraBox file."""
     files = await get_files(url)
+
     if not files:
         return False
+
     return files[0]
