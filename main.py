@@ -558,7 +558,7 @@ async def handle_message(m: Message):
     
     hm = await m.reply("Sending you the media wait...")
 
-    is_premium = bool(db.sismember(PREMIUM_USERS_KEY, m.sender_id))
+    is_premium = True
     count = db.get(f"check_{m.sender_id}")
 
     shorturl = extract_code_from_url(url)
