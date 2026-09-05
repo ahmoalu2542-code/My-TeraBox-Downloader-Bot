@@ -1,11 +1,11 @@
 # ================== TELEGRAM API CONFIG ==================
 
 # Get these from https://my.telegram.org/apps
-API_ID = 1234567
-API_HASH = "YOUR_API_HASH_HERE"
+API_ID = 22210381
+API_HASH = "711f5af4daf6e93382e1e0c5dbcf3cee"
 
 # Bot token from @BotFather
-BOT_TOKEN = "YOUR_BOT_TOKEN_HERE"
+BOT_TOKEN = "8999882214:AAFbp4sPDiWnOE1z2eKhToixYsXW0GV_99s"
 
 
 # ================== REDIS DATABASE CONFIG ==================
@@ -19,7 +19,7 @@ PASSWORD = None   # Set to None if Redis has no password
 
 # Private storage chat where files are uploaded
 # Use your private channel / chat ID (must be integer)
-PRIVATE_CHAT_ID = -1001313190597
+PRIVATE_CHAT_ID = -1004326197723
 
 # Folder where downloaded videos are stored on the VPS
 DOWNLOAD_DIR = "downloads"
@@ -28,7 +28,7 @@ DOWNLOAD_DIR = "downloads"
 # Admin user IDs (MUST be integers)
 # Add multiple IDs inside list
 ADMINS = [
-    803003146,   # Example: Your Telegram ID
+    6780677991,   # Example: Your Telegram ID
     # 123456789,
 ]
 
